@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Search, Heart, ShoppingBag, Menu, X } from 'lucide-react';
 
 export default function Navbar({
@@ -6,12 +7,11 @@ export default function Navbar({
   wishlistCount,
   onOpenSearch,
   onOpenCart,
-  onOpenWishlist,
-  activeSection,
-  onCategorySelect
+  onOpenWishlist
 }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,24 +25,16 @@ export default function Navbar({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const scrollToSection = (id) => {
+  const handleCategorySelect = (catKey) => {
     setMobileMenuOpen(false);
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  const handleCategoryClick = (catKey) => {
-    setMobileMenuOpen(false);
-    onCategorySelect(catKey);
+    navigate(`/shop?category=${catKey}`);
   };
 
   return (
     <header id="navbar" className={isScrolled ? 'scrolled' : ''}>
       <nav className="nav-container">
         {/* Logo */}
-        <a href="#home" onClick={(e) => { e.preventDefault(); scrollToSection('home'); }} className="nav-logo">
+        <Link to="/" className="nav-logo" onClick={() => setMobileMenuOpen(false)}>
           <div className="logo-emblem">
             <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
               <polygon points="18,2 34,10 34,26 18,34 2,26 2,10" stroke="#c8a84b" strokeWidth="2" fill="none"/>
@@ -54,71 +46,72 @@ export default function Navbar({
             <span className="logo-main">VANSH</span>
             <span className="logo-sub">WEAPONS</span>
           </div>
-        </a>
+        </Link>
 
         {/* Nav Links */}
         <ul className={`nav-links ${mobileMenuOpen ? 'open' : ''}`}>
           <li>
-            <button
-              className={`nav-link ${activeSection === 'home' ? 'active' : ''}`}
-              onClick={() => scrollToSection('home')}
+            <NavLink
+              to="/"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              onClick={() => setMobileMenuOpen(false)}
             >
               Home
-            </button>
+            </NavLink>
           </li>
+
           <li className="nav-dropdown">
-            <button className="nav-link">
+            <NavLink
+              to="/categories"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            >
               Categories <span className="arrow">▾</span>
-            </button>
+            </NavLink>
             <ul className="dropdown-menu">
               <li>
-                <button onClick={() => handleCategoryClick('knives')}>🔪 Hunting Knives</button>
+                <button onClick={() => handleCategorySelect('knives')}>🔪 Hunting Knives</button>
               </li>
               <li>
-                <button onClick={() => handleCategoryClick('bow')}>🏹 Bows & Arrows</button>
+                <button onClick={() => handleCategorySelect('bow')}>🏹 Bows & Arrows</button>
               </li>
               <li>
-                <button onClick={() => handleCategoryClick('tactical')}>⚡ Tactical Gear</button>
+                <button onClick={() => handleCategorySelect('tactical')}>⚡ Tactical Gear</button>
               </li>
               <li>
-                <button onClick={() => handleCategoryClick('selfdefense')}>🛡️ Self-Defense</button>
+                <button onClick={() => handleCategorySelect('selfdefense')}>🛡️ Self-Defense</button>
               </li>
               <li>
-                <button onClick={() => handleCategoryClick('accessories')}>🔧 Accessories</button>
+                <button onClick={() => handleCategorySelect('accessories')}>🔧 Accessories</button>
               </li>
             </ul>
           </li>
+
           <li>
-            <button
-              className={`nav-link ${activeSection === 'products' ? 'active' : ''}`}
-              onClick={() => scrollToSection('products')}
+            <NavLink
+              to="/shop"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              onClick={() => setMobileMenuOpen(false)}
             >
               Shop
-            </button>
+            </NavLink>
           </li>
           <li>
-            <button
-              className={`nav-link ${activeSection === 'about' ? 'active' : ''}`}
-              onClick={() => scrollToSection('about')}
+            <NavLink
+              to="/about"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              onClick={() => setMobileMenuOpen(false)}
             >
               About
-            </button>
+            </NavLink>
           </li>
           <li>
-            <button
-              className={`nav-link ${activeSection === 'testimonials' ? 'active' : ''}`}
-              onClick={() => scrollToSection('testimonials')}
-            >
-              Reviews
-            </button>
-          </li>
-          <li>
-            <button
-              className={`nav-link ${activeSection === 'contact' ? 'active' : ''}`}
-              onClick={() => scrollToSection('contact')}
+            <NavLink
+              to="/contact"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              onClick={() => setMobileMenuOpen(false)}
             >
               Contact
-            </button>
+            </NavLink>
           </li>
         </ul>
 
@@ -127,14 +120,14 @@ export default function Navbar({
           <button className="nav-icon-btn" onClick={onOpenSearch} title="Search (Ctrl+K)">
             <Search size={20} />
           </button>
-          <button className="nav-icon-btn" onClick={onOpenWishlist} title="Wishlist">
+          <Link to="/wishlist" className="nav-icon-btn" title="Wishlist">
             <Heart size={20} />
             {wishlistCount > 0 && <span className="wishlist-badge">{wishlistCount}</span>}
-          </button>
-          <button className="nav-icon-btn cart-btn" onClick={onOpenCart} title="Your Cart">
+          </Link>
+          <Link to="/cart" className="nav-icon-btn cart-btn" title="Your Cart">
             <ShoppingBag size={20} />
             {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
-          </button>
+          </Link>
           <button
             className={`hamburger ${mobileMenuOpen ? 'active' : ''}`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

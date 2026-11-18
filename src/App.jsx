@@ -1,42 +1,68 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
+// Layout & Global Components
 import Preloader from './components/Preloader';
 import AnnouncementBar from './components/AnnouncementBar';
 import Navbar from './components/Navbar';
 import SearchBar from './components/SearchBar';
 import CartDrawer from './components/CartDrawer';
-import WishlistDrawer from './components/WishlistDrawer';
 import ProductQuickViewModal from './components/ProductQuickViewModal';
-import Hero from './components/Hero';
-import TrustSection from './components/TrustSection';
-import CategoriesSection from './components/CategoriesSection';
-import ProductsSection from './components/ProductsSection';
-import CtaBanner from './components/CtaBanner';
-import AboutSection from './components/AboutSection';
-import TestimonialsSection from './components/TestimonialsSection';
-import ContactSection from './components/ContactSection';
 import Footer from './components/Footer';
 import NotificationToast from './components/NotificationToast';
 import BackToTop from './components/BackToTop';
 
-import { products } from './data/products';
+// Pages
+import HomePage from './pages/HomePage';
+import ShopPage from './pages/ShopPage';
+import ProductDetailPage from './pages/ProductDetailPage';
+import CategoriesPage from './pages/CategoriesPage';
+import AboutPage from './pages/AboutPage';
+import ContactPage from './pages/ContactPage';
+import CartPage from './pages/CartPage';
+import CheckoutPage from './pages/CheckoutPage';
+import OrderSuccessPage from './pages/OrderSuccessPage';
+import WishlistPage from './pages/WishlistPage';
 
 export default function App() {
-  const [cart, setCart] = useState([]);
-  const [wishlist, setWishlist] = useState([]);
-  const [currentCategory, setCurrentCategory] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [cart, setCart] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vw_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
-  // Drawers & Modals State
+  const [wishlist, setWishlist] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vw_wishlist');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Modal / Drawer States
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isWishlistOpen, setIsWishlistOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [quickViewProduct, setQuickViewProduct] = useState(null);
-
-  // Active section for Navbar link indicator
-  const [activeSection, setActiveSection] = useState('home');
 
   // Notification Toast State
   const [notification, setNotification] = useState({ text: '', visible: false });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('vw_cart', JSON.stringify(cart));
+    } catch {}
+  }, [cart]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('vw_wishlist', JSON.stringify(wishlist));
+    } catch {}
+  }, [wishlist]);
 
   const showNotification = (msg) => {
     setNotification({ text: msg, visible: true });
@@ -45,7 +71,7 @@ export default function App() {
     }, 3000);
   };
 
-  // Cart Handlers
+  // Cart Management
   const handleAddToCart = (product) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
@@ -75,11 +101,11 @@ export default function App() {
     showNotification('Item removed from cart 🗑');
   };
 
-  const handleCheckout = () => {
-    showNotification('Proceeding to Secure Checkout... 🛒');
+  const handleClearCart = () => {
+    setCart([]);
   };
 
-  // Wishlist Handlers
+  // Wishlist Management
   const handleToggleWishlist = (product) => {
     setWishlist((prev) => {
       const exists = prev.some((item) => item.id === product.id);
@@ -92,177 +118,151 @@ export default function App() {
     });
   };
 
-  const handleRemoveFromWishlist = (productId) => {
-    setWishlist((prev) => prev.filter((item) => item.id !== productId));
-    showNotification('Removed from Wishlist');
-  };
-
-  const handleMoveToCart = (product) => {
-    handleAddToCart(product);
-    handleRemoveFromWishlist(product.id);
-  };
-
-  // Filtered Products Logic
-  const filteredProducts = products.filter((p) => {
-    const matchesCategory = currentCategory === 'all' || p.category === currentCategory;
-    const matchesSearch =
-      !searchQuery.trim() ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.desc.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
-
-  const handleSelectCategory = (catKey) => {
-    setCurrentCategory(catKey);
-    const element = document.getElementById('products');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  const handleSearchSubmit = () => {
-    setIsSearchOpen(false);
-    const element = document.getElementById('products');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  // Keyboard Shortcuts Listener
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setIsSearchOpen((prev) => !prev);
-      }
-      if (e.key === 'Escape') {
-        setIsSearchOpen(false);
-        setIsCartOpen(false);
-        setIsWishlistOpen(false);
-        setQuickViewProduct(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Section Observer for Nav Active States
-  useEffect(() => {
-    const sections = ['home', 'categories', 'products', 'about', 'testimonials', 'contact'];
-    const handleScroll = () => {
-      const scrollPos = window.scrollY + 200;
-      for (let id of sections) {
-        const el = document.getElementById(id);
-        if (el) {
-          const top = el.offsetTop;
-          const height = el.offsetHeight;
-          if (scrollPos >= top && scrollPos < top + height) {
-            setActiveSection(id);
-            break;
-          }
-        }
-      }
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  const wishlistIds = wishlist.map((item) => item.id);
 
   return (
-    <div className="app">
-      <Preloader />
-      <AnnouncementBar />
+    <Router>
+      <div className="app">
+        <Preloader />
+        <AnnouncementBar />
 
-      <Navbar
-        cartCount={cart.reduce((sum, item) => sum + item.qty, 0)}
-        wishlistCount={wishlist.length}
-        onOpenSearch={() => setIsSearchOpen(true)}
-        onOpenCart={() => setIsCartOpen(true)}
-        onOpenWishlist={() => setIsWishlistOpen(true)}
-        activeSection={activeSection}
-        onCategorySelect={handleSelectCategory}
-      />
+        <Navbar
+          cartCount={cart.reduce((sum, item) => sum + item.qty, 0)}
+          wishlistCount={wishlist.length}
+          onOpenSearch={() => setIsSearchOpen(true)}
+          onOpenCart={() => setIsCartOpen(true)}
+          onOpenWishlist={() => {}}
+        />
 
-      <SearchBar
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        onSearchSubmit={handleSearchSubmit}
-      />
-
-      <CartDrawer
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        cart={cart}
-        onUpdateQty={handleUpdateQty}
-        onRemoveFromCart={handleRemoveFromCart}
-        onCheckout={handleCheckout}
-      />
-
-      <WishlistDrawer
-        isOpen={isWishlistOpen}
-        onClose={() => setIsWishlistOpen(false)}
-        wishlist={wishlist}
-        onRemoveFromWishlist={handleRemoveFromWishlist}
-        onMoveToCart={handleMoveToCart}
-      />
-
-      <ProductQuickViewModal
-        product={quickViewProduct}
-        onClose={() => setQuickViewProduct(null)}
-        onAddToCart={handleAddToCart}
-        onToggleWishlist={handleToggleWishlist}
-        isWishlisted={quickViewProduct ? wishlist.some((item) => item.id === quickViewProduct.id) : false}
-      />
-
-      <main>
-        <Hero
-          onShopNowClick={() => handleSelectCategory('all')}
-          onBrowseCategoriesClick={() => {
-            const el = document.getElementById('categories');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
+        <SearchBar
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onSearchSubmit={() => {
+            setIsSearchOpen(false);
+            window.location.href = `/shop?q=${encodeURIComponent(searchQuery)}`;
           }}
         />
 
-        <TrustSection />
+        <CartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          cart={cart}
+          onUpdateQty={handleUpdateQty}
+          onRemoveFromCart={handleRemoveFromCart}
+          onCheckout={() => {
+            setIsCartOpen(false);
+            window.location.href = '/checkout';
+          }}
+        />
 
-        <CategoriesSection onSelectCategory={handleSelectCategory} />
-
-        <ProductsSection
-          products={filteredProducts}
-          currentCategory={currentCategory}
-          onCategoryChange={(cat) => setCurrentCategory(cat)}
-          searchQuery={searchQuery}
-          onClearSearch={() => setSearchQuery('')}
+        <ProductQuickViewModal
+          product={quickViewProduct}
+          onClose={() => setQuickViewProduct(null)}
           onAddToCart={handleAddToCart}
           onToggleWishlist={handleToggleWishlist}
-          onQuickView={(p) => setQuickViewProduct(p)}
-          wishlistIds={wishlist.map((item) => item.id)}
+          isWishlisted={quickViewProduct ? wishlistIds.includes(quickViewProduct.id) : false}
         />
 
-        <CtaBanner onShopNowClick={() => handleSelectCategory('all')} />
+        <main>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <HomePage
+                  onAddToCart={handleAddToCart}
+                  onToggleWishlist={handleToggleWishlist}
+                  onQuickView={(p) => setQuickViewProduct(p)}
+                  wishlistIds={wishlistIds}
+                  onShowNotification={showNotification}
+                />
+              }
+            />
 
-        <AboutSection
-          onExploreClick={() => {
-            const el = document.getElementById('products');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
+            <Route
+              path="/shop"
+              element={
+                <ShopPage
+                  onAddToCart={handleAddToCart}
+                  onToggleWishlist={handleToggleWishlist}
+                  onQuickView={(p) => setQuickViewProduct(p)}
+                  wishlistIds={wishlistIds}
+                />
+              }
+            />
+
+            <Route
+              path="/product/:id"
+              element={
+                <ProductDetailPage
+                  onAddToCart={handleAddToCart}
+                  onToggleWishlist={handleToggleWishlist}
+                  onQuickView={(p) => setQuickViewProduct(p)}
+                  wishlistIds={wishlistIds}
+                />
+              }
+            />
+
+            <Route path="/categories" element={<CategoriesPage />} />
+
+            <Route path="/about" element={<AboutPage />} />
+
+            <Route
+              path="/contact"
+              element={<ContactPage onShowNotification={showNotification} />}
+            />
+
+            <Route
+              path="/cart"
+              element={
+                <CartPage
+                  cart={cart}
+                  onUpdateQty={handleUpdateQty}
+                  onRemoveFromCart={handleRemoveFromCart}
+                  onShowNotification={showNotification}
+                />
+              }
+            />
+
+            <Route
+              path="/checkout"
+              element={
+                <CheckoutPage
+                  cart={cart}
+                  onClearCart={handleClearCart}
+                  onShowNotification={showNotification}
+                />
+              }
+            />
+
+            <Route path="/order-success" element={<OrderSuccessPage />} />
+
+            <Route
+              path="/wishlist"
+              element={
+                <WishlistPage
+                  wishlist={wishlist}
+                  onAddToCart={handleAddToCart}
+                  onToggleWishlist={handleToggleWishlist}
+                  onQuickView={(p) => setQuickViewProduct(p)}
+                />
+              }
+            />
+          </Routes>
+        </main>
+
+        <Footer
+          onCategorySelect={(catKey) => {
+            window.location.href = `/shop?category=${catKey}`;
           }}
+          onShowNotification={showNotification}
         />
 
-        <TestimonialsSection />
+        <NotificationToast message={notification.text} isVisible={notification.visible} />
 
-        <ContactSection onShowNotification={showNotification} />
-      </main>
-
-      <Footer
-        onCategorySelect={handleSelectCategory}
-        onShowNotification={showNotification}
-      />
-
-      <NotificationToast message={notification.text} isVisible={notification.visible} />
-
-      <BackToTop />
-    </div>
+        <BackToTop />
+      </div>
+    </Router>
   );
 }
