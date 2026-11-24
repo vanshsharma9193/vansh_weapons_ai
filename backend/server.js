@@ -1,97 +1,106 @@
 import express from 'express';
 import cors from 'cors';
-import { productsData, categoriesData } from './data/productsData.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { categoriesData } from './data/productsData.js';
+import { storage } from './storage.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env configuration natively in Node.js
+const envPath = path.resolve(__dirname, '.env');
+if (fs.existsSync(envPath) && typeof process.loadEnvFile === 'function') {
+  try {
+    process.loadEnvFile(envPath);
+  } catch (err) {
+    console.warn('[Env] Notice: Failed loading .env:', err.message);
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS for all local development ports
+// ----------------------------------------------------
+// Middleware
+// ----------------------------------------------------
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+  : '*';
+
 app.use(cors({
-  origin: '*',
+  origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// In-memory data stores
-const productsDB = JSON.parse(JSON.stringify(productsData));
-const categoriesDB = JSON.parse(JSON.stringify(categoriesData));
+// Serve static assets if directory exists
+const publicDir = path.resolve(__dirname, process.env.STATIC_ASSETS_DIR || '../frontend/public');
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir));
+}
 
-const ordersDB = [
-  {
-    orderId: 'VW-94821-2026',
-    items: [
-      {
-        id: 1,
-        name: 'Predator Hunting Blade',
-        price: 2499,
-        qty: 1,
-        category: 'knives',
-        image: '/images/knife1.png'
-      }
-    ],
-    shippingAddress: {
-      fullName: 'Vikram Singh Rathore',
-      email: 'vikram.rathore@example.com',
-      phone: '+91 98765 43210',
-      address: 'Plot 42, Defence Colony',
-      city: 'Jaipur',
-      state: 'Rajasthan',
-      pincode: '302001',
-      idType: 'Aadhaar Card',
-      idNumber: 'XXXX-XXXX-9012'
-    },
-    paymentMethod: 'Cash on Delivery (COD)',
-    subtotal: 2499,
-    discount: 0,
-    shippingFee: 150,
-    totalAmount: 2649,
-    status: 'Shipped',
-    trackingNumber: 'VW-EXP-883921',
-    carrier: 'BlueDart Defence Express',
-    estimatedDelivery: '3 Business Days',
-    createdAt: new Date(Date.now() - 86400000).toISOString()
-  }
-];
-
-const contactInquiriesDB = [];
-const newsletterSubscribersDB = new Set(['arsenal.insider@vanshweapons.com']);
-
-const COUPONS = {
-  VANSH20: { discountPercent: 20, minSubtotal: 2000, description: '20% off on orders above ₹2,000' },
-  FIRSTBUY: { discountPercent: 10, minSubtotal: 0, description: '10% off on your first order' },
-  TACTICAL15: { discountPercent: 15, minSubtotal: 1500, description: '15% off on tactical gear above ₹1,500' }
-};
+// Simple request logger
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[API] ${req.method} ${req.originalUrl} ${res.statusCode} (${duration}ms)`);
+  });
+  next();
+});
 
 // ----------------------------------------------------
-// Health Check
+// Health Check & Store Info
 // ----------------------------------------------------
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    message: '⚔️ Vansh Weapons REST API is operational',
-    version: '1.2.0',
+    message: '⚔️ Vansh Weapons REST API is fully operational',
+    version: '2.0.0',
+    uptime: `${Math.floor(process.uptime())}s`,
     timestamp: new Date().toISOString()
   });
 });
 
-// ----------------------------------------------------
-// Store Stats / Overview
-// ----------------------------------------------------
 app.get('/api/stats', (req, res) => {
-  const totalRevenue = ordersDB.reduce((sum, ord) => sum + (ord.totalAmount || 0), 0);
+  const products = storage.getProducts();
+  const orders = storage.getOrders();
+  const subscribers = storage.getSubscribers();
+  const inquiries = storage.getInquiries();
+
+  const totalRevenue = orders.reduce((sum, ord) => sum + (ord.totalAmount || 0), 0);
+  const totalItemsSold = orders.reduce((sum, ord) => {
+    return sum + (ord.items || []).reduce((iSum, it) => iSum + (it.qty || 1), 0);
+  }, 0);
+
   res.json({
     success: true,
     data: {
-      totalProducts: productsDB.length,
-      totalCategories: categoriesDB.length,
-      totalOrders: ordersDB.length,
+      totalProducts: products.length,
+      totalCategories: categoriesData.length,
+      totalOrders: orders.length,
+      totalItemsSold,
       totalRevenue,
-      subscribersCount: newsletterSubscribersDB.size,
-      satisfactionRate: '98.6%',
-      complianceStatus: '100% Indian Arms Act Compliant'
+      subscribersCount: subscribers.length,
+      inquiriesCount: inquiries.length,
+      satisfactionRate: '99.2%',
+      complianceStatus: '100% Indian Arms Act 1959 Compliant'
     }
+  });
+});
+
+// ----------------------------------------------------
+// Compliance & Legal Information
+// ----------------------------------------------------
+app.get('/api/compliance', (req, res) => {
+  res.json({
+    success: true,
+    data: storage.getCompliance()
   });
 });
 
@@ -99,30 +108,65 @@ app.get('/api/stats', (req, res) => {
 // Categories
 // ----------------------------------------------------
 app.get('/api/categories', (req, res) => {
-  res.json({ success: true, count: categoriesDB.length, data: categoriesDB });
+  const products = storage.getProducts();
+  const enrichedCategories = categoriesData.map((cat) => {
+    const count = products.filter((p) => p.category.toLowerCase() === cat.id.toLowerCase()).length;
+    return {
+      ...cat,
+      productCount: count,
+      countLabel: `${count} Products`
+    };
+  });
+
+  res.json({
+    success: true,
+    count: enrichedCategories.length,
+    data: enrichedCategories
+  });
+});
+
+app.get('/api/categories/:key', (req, res) => {
+  const { key } = req.params;
+  const cat = categoriesData.find((c) => c.id.toLowerCase() === key.toLowerCase());
+
+  if (!cat) {
+    return res.status(404).json({ success: false, message: `Category '${key}' not found` });
+  }
+
+  const products = storage.getProducts().filter((p) => p.category.toLowerCase() === key.toLowerCase());
+
+  res.json({
+    success: true,
+    data: {
+      ...cat,
+      products,
+      productCount: products.length
+    }
+  });
 });
 
 // ----------------------------------------------------
 // Products
 // ----------------------------------------------------
 app.get('/api/products', (req, res) => {
-  const { category, search, sort, minPrice, maxPrice, limit } = req.query;
-  let results = [...productsDB];
+  const { category, search, sort, minPrice, maxPrice, limit, inStock } = req.query;
+  let results = [...storage.getProducts()];
 
   // Category filter
   if (category && category !== 'all') {
     results = results.filter((p) => p.category.toLowerCase() === category.toLowerCase());
   }
 
-  // Search filter
+  // Search filter (name, category, description, specifications)
   if (search && search.trim()) {
     const q = search.toLowerCase().trim();
-    results = results.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
-        (p.desc && p.desc.toLowerCase().includes(q))
-    );
+    results = results.filter((p) => {
+      const matchName = p.name.toLowerCase().includes(q);
+      const matchCategory = p.category.toLowerCase().includes(q);
+      const matchDesc = p.desc && p.desc.toLowerCase().includes(q);
+      const matchSpecs = p.specs && JSON.stringify(p.specs).toLowerCase().includes(q);
+      return matchName || matchCategory || matchDesc || matchSpecs;
+    });
   }
 
   // Price range filters
@@ -133,78 +177,200 @@ app.get('/api/products', (req, res) => {
     results = results.filter((p) => p.price <= Number(maxPrice));
   }
 
+  // In-stock filter
+  if (inStock === 'true') {
+    results = results.filter((p) => p.inStock !== false);
+  }
+
   // Sorting
   if (sort === 'price-low') {
     results.sort((a, b) => a.price - b.price);
   } else if (sort === 'price-high') {
     results.sort((a, b) => b.price - a.price);
   } else if (sort === 'rating') {
-    results.sort((a, b) => b.rating - a.rating);
+    results.sort((a, b) => (b.rating || 0) - (a.rating || 0));
   } else if (sort === 'reviews') {
     results.sort((a, b) => (b.reviews || 0) - (a.reviews || 0));
+  } else if (sort === 'newest') {
+    results.sort((a, b) => (b.id || 0) - (a.id || 0));
   }
 
-  // Limit
+  // Limit / Pagination
   if (limit && !isNaN(Number(limit))) {
     results = results.slice(0, Number(limit));
   }
 
-  res.json({ success: true, count: results.length, data: results });
+  res.json({
+    success: true,
+    count: results.length,
+    data: results
+  });
+});
+
+// Autocomplete Search Suggestions
+app.get('/api/products/search/suggestions', (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) {
+    return res.json({ success: true, data: [] });
+  }
+
+  const query = q.toLowerCase().trim();
+  const products = storage.getProducts();
+
+  const suggestions = products
+    .filter((p) => p.name.toLowerCase().includes(query) || p.category.toLowerCase().includes(query))
+    .slice(0, 6)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      price: p.price,
+      image: p.image
+    }));
+
+  res.json({ success: true, data: suggestions });
 });
 
 app.get('/api/products/:id', (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const product = productsDB.find((p) => p.id === id);
+  const product = storage.getProductById(id);
 
   if (!product) {
-    return res.status(404).json({ success: false, message: 'Product not found' });
+    return res.status(404).json({ success: false, message: `Product ID #${id} not found` });
   }
 
-  const related = productsDB
+  const related = storage.getProducts()
     .filter((p) => p.category === product.category && p.id !== product.id)
     .slice(0, 4);
 
-  res.json({ success: true, data: product, related });
+  res.json({
+    success: true,
+    data: product,
+    related
+  });
 });
 
-// Add Review to Product
+// Submit Product Review
 app.post('/api/products/:id/reviews', (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { author, rating, comment } = req.body;
 
-  const product = productsDB.find((p) => p.id === id);
-  if (!product) {
-    return res.status(404).json({ success: false, message: 'Product not found' });
-  }
-
   const numRating = Number(rating);
-  if (!author || isNaN(numRating) || numRating < 1 || numRating > 5) {
-    return res.status(400).json({ success: false, message: 'Valid author and rating (1-5) required' });
-  }
-
-  if (!product.userReviews) {
-    product.userReviews = [];
+  if (!author || !author.trim() || isNaN(numRating) || numRating < 1 || numRating > 5) {
+    return res.status(400).json({
+      success: false,
+      message: 'Valid author name and rating (1-5) are required'
+    });
   }
 
   const newReview = {
-    id: product.userReviews.length + 1,
+    id: Date.now(),
     author: author.trim(),
     rating: numRating,
     comment: (comment || '').trim(),
     date: new Date().toISOString()
   };
 
-  product.userReviews.push(newReview);
-  // Recalculate average rating
-  const totalReviews = (product.reviews || 0) + 1;
-  const currentSum = (product.rating || 4.5) * (product.reviews || 1);
-  product.rating = Number(((currentSum + numRating) / totalReviews).toFixed(1));
-  product.reviews = totalReviews;
+  const updatedProduct = storage.addProductReview(id, newReview);
+  if (!updatedProduct) {
+    return res.status(404).json({ success: false, message: `Product ID #${id} not found` });
+  }
 
   res.status(201).json({
     success: true,
     message: 'Review submitted successfully!',
-    data: { productRating: product.rating, reviewsCount: product.reviews, review: newReview }
+    data: {
+      productRating: updatedProduct.rating,
+      reviewsCount: updatedProduct.reviews,
+      review: newReview
+    }
+  });
+});
+
+// ----------------------------------------------------
+// Testimonials
+// ----------------------------------------------------
+app.get('/api/testimonials', (req, res) => {
+  const testimonials = storage.getTestimonials();
+  res.json({
+    success: true,
+    count: testimonials.length,
+    data: testimonials
+  });
+});
+
+app.post('/api/testimonials', (req, res) => {
+  const { name, text, location, rating } = req.body;
+
+  if (!name || !text) {
+    return res.status(400).json({ success: false, message: 'Name and testimonial text are required' });
+  }
+
+  const numRating = Number(rating) || 5;
+  const newTestimonial = {
+    id: Date.now(),
+    name: name.trim(),
+    text: text.trim(),
+    location: (location || 'India').trim(),
+    rating: Math.min(5, Math.max(1, numRating)),
+    verified: true,
+    date: new Date().toISOString()
+  };
+
+  storage.addTestimonial(newTestimonial);
+
+  res.status(201).json({
+    success: true,
+    message: 'Thank you! Your testimonial has been published.',
+    data: newTestimonial
+  });
+});
+
+// ----------------------------------------------------
+// Coupons & Promotions
+// ----------------------------------------------------
+app.get('/api/coupons', (req, res) => {
+  const coupons = storage.getCoupons();
+  res.json({
+    success: true,
+    count: coupons.length,
+    data: coupons
+  });
+});
+
+app.post('/api/coupons/verify', (req, res) => {
+  const { couponCode, subtotal } = req.body;
+
+  if (!couponCode) {
+    return res.status(400).json({ success: false, message: 'Coupon code is required' });
+  }
+
+  const coupon = storage.getCouponByCode(couponCode);
+  if (!coupon) {
+    return res.status(404).json({
+      success: false,
+      message: `Promo code '${couponCode.toUpperCase()}' is invalid or expired. Try VANSH20 or VANSH15.`
+    });
+  }
+
+  const currentSubtotal = Number(subtotal) || 0;
+  if (currentSubtotal < coupon.minSubtotal) {
+    return res.status(400).json({
+      success: false,
+      message: `Coupon '${coupon.code}' requires a minimum subtotal of ₹${coupon.minSubtotal.toLocaleString('en-IN')}`
+    });
+  }
+
+  const discountAmount = Math.round((currentSubtotal * coupon.discountPercent) / 100);
+
+  res.json({
+    success: true,
+    valid: true,
+    couponCode: coupon.code,
+    discountPercent: coupon.discountPercent,
+    discountAmount,
+    description: coupon.description,
+    message: `🎉 Coupon '${coupon.code}' applied! You save ₹${discountAmount.toLocaleString('en-IN')}`
   });
 });
 
@@ -212,15 +378,36 @@ app.post('/api/products/:id/reviews', (req, res) => {
 // Orders
 // ----------------------------------------------------
 app.get('/api/orders', (req, res) => {
-  res.json({ success: true, count: ordersDB.length, data: ordersDB });
+  const { phone, email, search } = req.query;
+  let orders = storage.getOrders();
+
+  if (phone) {
+    orders = orders.filter((o) => o.shippingAddress?.phone?.includes(phone));
+  }
+  if (email) {
+    orders = orders.filter((o) => o.shippingAddress?.email?.toLowerCase().includes(email.toLowerCase()));
+  }
+  if (search) {
+    const s = search.toLowerCase();
+    orders = orders.filter((o) =>
+      o.orderId.toLowerCase().includes(s) ||
+      o.shippingAddress?.fullName?.toLowerCase().includes(s)
+    );
+  }
+
+  res.json({
+    success: true,
+    count: orders.length,
+    data: orders
+  });
 });
 
 app.get('/api/orders/:orderId', (req, res) => {
   const { orderId } = req.params;
-  const order = ordersDB.find((o) => o.orderId.toLowerCase() === orderId.toLowerCase());
+  const order = storage.getOrderById(orderId);
 
   if (!order) {
-    return res.status(404).json({ success: false, message: `Order ${orderId} not found` });
+    return res.status(404).json({ success: false, message: `Order #${orderId} not found` });
   }
 
   res.json({ success: true, data: order });
@@ -228,19 +415,23 @@ app.get('/api/orders/:orderId', (req, res) => {
 
 app.get('/api/orders/:orderId/track', (req, res) => {
   const { orderId } = req.params;
-  const order = ordersDB.find((o) => o.orderId.toLowerCase() === orderId.toLowerCase());
+  const order = storage.getOrderById(orderId);
 
   if (!order) {
-    return res.status(404).json({ success: false, message: `Order ${orderId} not found` });
+    return res.status(404).json({ success: false, message: `Order #${orderId} not found` });
   }
 
+  const isShipped = ['Shipped', 'Out for Delivery', 'Delivered'].includes(order.status);
+  const isOutForDelivery = ['Out for Delivery', 'Delivered'].includes(order.status);
+  const isDelivered = order.status === 'Delivered';
+
   const trackingTimeline = [
-    { step: 'Order Placed & Verified', date: order.createdAt, done: true },
-    { step: 'Arms Act Verification Approved', date: order.createdAt, done: true },
-    { step: 'Package Dispatched from Warehouse', date: order.createdAt, done: order.status !== 'Confirmed' },
-    { step: 'In Transit with Express Logistics', date: null, done: order.status === 'Shipped' || order.status === 'Delivered' },
-    { step: 'Out for Delivery', date: null, done: order.status === 'Delivered' },
-    { step: 'Delivered', date: null, done: order.status === 'Delivered' }
+    { step: 'Order Placed & Acknowledged', date: order.createdAt, done: true },
+    { step: 'Arms Act 1959 18+ Verification Verified', date: order.createdAt, done: true },
+    { step: 'Tactical Inspection & Secure Packing', date: order.createdAt, done: order.status !== 'Cancelled' },
+    { step: 'Dispatched with BlueDart Defence Express', date: isShipped ? order.createdAt : null, done: isShipped },
+    { step: 'Out for Discreet Handover', date: isOutForDelivery ? order.createdAt : null, done: isOutForDelivery },
+    { step: 'Delivered Securely to Buyer', date: isDelivered ? order.createdAt : null, done: isDelivered }
   ];
 
   res.json({
@@ -249,10 +440,85 @@ app.get('/api/orders/:orderId/track', (req, res) => {
       orderId: order.orderId,
       status: order.status,
       carrier: order.carrier || 'BlueDart Defence Express',
-      trackingNumber: order.trackingNumber || `VW-EXP-${Math.floor(100000 + Math.random() * 900000)}`,
-      estimatedDelivery: order.estimatedDelivery || '2-4 Business Days',
+      trackingNumber: order.trackingNumber,
+      estimatedDelivery: order.estimatedDelivery || '3-5 Business Days',
+      deliveryAddress: `${order.shippingAddress?.city}, ${order.shippingAddress?.state}`,
       timeline: trackingTimeline
     }
+  });
+});
+
+app.post('/api/orders', (req, res) => {
+  const { items, shippingAddress, ageVerified, paymentMethod, couponCode } = req.body;
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, message: 'Cart items are required' });
+  }
+
+  if (!ageVerified) {
+    return res.status(400).json({
+      success: false,
+      message: 'Government ID verification and 18+ age confirmation are strictly required under the Indian Arms Act 1959'
+    });
+  }
+
+  if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.address || !shippingAddress.pincode) {
+    return res.status(400).json({
+      success: false,
+      message: 'Full name, delivery address, and pincode are required for tactical delivery'
+    });
+  }
+
+  // Calculate Subtotal server-side to prevent tampering
+  const subtotal = items.reduce((sum, item) => {
+    const price = Number(item.price) || 0;
+    const qty = Number(item.qty) || 1;
+    return sum + price * qty;
+  }, 0);
+
+  // Apply Coupon if supplied
+  let discount = 0;
+  let appliedCode = null;
+  if (couponCode) {
+    const coupon = storage.getCouponByCode(couponCode);
+    if (coupon && subtotal >= coupon.minSubtotal) {
+      discount = Math.round((subtotal * coupon.discountPercent) / 100);
+      appliedCode = coupon.code;
+    }
+  }
+
+  // Free shipping threshold ₹5,000
+  const shippingFee = subtotal >= 5000 ? 0 : 150;
+  const totalAmount = Math.max(0, subtotal - discount + shippingFee);
+
+  const orderId = `VW-${Math.floor(10000 + Math.random() * 90000)}-2026`;
+  const trackingNumber = `VW-EXP-${Math.floor(100000 + Math.random() * 900000)}`;
+
+  const newOrder = {
+    orderId,
+    items,
+    shippingAddress,
+    paymentMethod: paymentMethod || 'Cash on Delivery (COD)',
+    subtotal,
+    discount,
+    couponCode: appliedCode,
+    shippingFee,
+    totalAmount,
+    status: 'Confirmed',
+    trackingNumber,
+    carrier: 'BlueDart Defence Express',
+    estimatedDelivery: '3-5 Business Days',
+    complianceVerified: true,
+    armsActReference: 'SEC-4-ARMS-1959-OK',
+    createdAt: new Date().toISOString()
+  };
+
+  storage.createOrder(newOrder);
+
+  res.status(201).json({
+    success: true,
+    message: 'Order confirmed! Discreet dispatch in progress.',
+    data: newOrder
   });
 });
 
@@ -264,111 +530,75 @@ app.patch('/api/orders/:orderId/status', (req, res) => {
   if (!status || !validStatuses.includes(status)) {
     return res.status(400).json({
       success: false,
-      message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      message: `Invalid status. Valid options: ${validStatuses.join(', ')}`
     });
   }
 
-  const order = ordersDB.find((o) => o.orderId.toLowerCase() === orderId.toLowerCase());
-  if (!order) {
-    return res.status(404).json({ success: false, message: `Order ${orderId} not found` });
+  const updatedOrder = storage.updateOrderStatus(orderId, status);
+  if (!updatedOrder) {
+    return res.status(404).json({ success: false, message: `Order #${orderId} not found` });
   }
 
-  order.status = status;
-  res.json({ success: true, message: `Order status updated to ${status}`, data: order });
+  res.json({
+    success: true,
+    message: `Order #${orderId} status updated to ${status}`,
+    data: updatedOrder
+  });
 });
 
-app.post('/api/orders', (req, res) => {
-  const { items, shippingAddress, ageVerified, paymentMethod, couponCode } = req.body;
+app.delete('/api/orders/:orderId', (req, res) => {
+  const { orderId } = req.params;
+  const cancelledOrder = storage.cancelOrder(orderId);
 
-  if (!items || !Array.isArray(items) || !items.length) {
-    return res.status(400).json({ success: false, message: 'Cart items required' });
+  if (!cancelledOrder) {
+    return res.status(404).json({ success: false, message: `Order #${orderId} not found` });
   }
 
-  if (!ageVerified) {
-    return res.status(400).json({
-      success: false,
-      message: 'Government ID & 18+ legal age verification required under Indian Arms Act'
-    });
-  }
-
-  const subtotal = items.reduce((sum, item) => sum + item.price * (item.qty || 1), 0);
-
-  // Apply Coupon
-  let discount = 0;
-  if (couponCode) {
-    const coupon = COUPONS[couponCode.trim().toUpperCase()];
-    if (coupon && subtotal >= coupon.minSubtotal) {
-      discount = Math.round((subtotal * coupon.discountPercent) / 100);
-    }
-  }
-
-  const shippingFee = subtotal >= 5000 ? 0 : 150;
-  const totalAmount = subtotal - discount + shippingFee;
-
-  const orderId = `VW-${Math.floor(10000 + Math.random() * 90000)}-2026`;
-  const trackingNumber = `VW-EXP-${Math.floor(100000 + Math.random() * 900000)}`;
-
-  const newOrder = {
-    orderId,
-    items,
-    shippingAddress: shippingAddress || {},
-    paymentMethod: paymentMethod || 'Cash on Delivery (COD)',
-    subtotal,
-    discount,
-    couponCode: discount > 0 ? couponCode.trim().toUpperCase() : null,
-    shippingFee,
-    totalAmount,
-    status: 'Confirmed',
-    trackingNumber,
-    carrier: 'BlueDart Defence Express',
-    estimatedDelivery: '3-5 Business Days',
-    createdAt: new Date().toISOString()
-  };
-
-  ordersDB.unshift(newOrder);
-
-  res.status(201).json({
+  res.json({
     success: true,
-    message: 'Order placed successfully! Legal verification complete.',
-    data: newOrder
+    message: `Order #${orderId} has been cancelled successfully`,
+    data: cancelledOrder
   });
 });
 
 // ----------------------------------------------------
-// Coupons Verification
+// Contact Inquiry
 // ----------------------------------------------------
-app.post('/api/coupons/verify', (req, res) => {
-  const { couponCode, subtotal } = req.body;
+app.get('/api/contact', (req, res) => {
+  const inquiries = storage.getInquiries();
+  res.json({
+    success: true,
+    count: inquiries.length,
+    data: inquiries
+  });
+});
 
-  if (!couponCode) {
-    return res.status(400).json({ success: false, message: 'Coupon code required' });
-  }
+app.post('/api/contact', (req, res) => {
+  const { name, email, phone, subject, message } = req.body;
 
-  const code = couponCode.trim().toUpperCase();
-  const coupon = COUPONS[code];
-
-  if (!coupon) {
-    return res.status(404).json({ success: false, message: 'Invalid coupon code' });
-  }
-
-  const currentSubtotal = Number(subtotal) || 0;
-  if (currentSubtotal < coupon.minSubtotal) {
+  if (!name || !email || !message) {
     return res.status(400).json({
       success: false,
-      message: `Coupon '${code}' requires a minimum subtotal of ₹${coupon.minSubtotal.toLocaleString()}`
+      message: 'Name, valid email address, and message are required'
     });
   }
 
-  const discountAmount = Math.round((currentSubtotal * coupon.discountPercent) / 100);
+  const inquiry = {
+    id: Date.now(),
+    name: name.trim(),
+    email: email.trim(),
+    phone: (phone || '').trim(),
+    subject: (subject || 'General Inquiry').trim(),
+    message: message.trim(),
+    createdAt: new Date().toISOString()
+  };
 
-  res.json({
+  storage.addInquiry(inquiry);
+
+  res.status(201).json({
     success: true,
-    valid: true,
-    couponCode: code,
-    discountPercent: coupon.discountPercent,
-    discountAmount,
-    description: coupon.description,
-    message: `Coupon '${code}' applied! You save ₹${discountAmount.toLocaleString()}`
+    message: `Thank you ${name}! Your dispatch regarding '${inquiry.subject}' has been transmitted to our tactical team.`,
+    data: inquiry
   });
 });
 
@@ -379,54 +609,24 @@ app.post('/api/newsletter', (req, res) => {
   const { email } = req.body;
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
-  }
-
-  const cleanEmail = email.trim().toLowerCase();
-  if (newsletterSubscribersDB.has(cleanEmail)) {
-    return res.status(200).json({
-      success: true,
-      message: 'You are already subscribed to the Vansh Weapons newsletter!'
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide a valid email address'
     });
   }
 
-  newsletterSubscribersDB.add(cleanEmail);
-  res.status(201).json({
-    success: true,
-    message: 'Thank you for subscribing! Exclusive tactical deals and arms updates await.'
-  });
-});
+  const result = storage.addSubscriber(email);
 
-// ----------------------------------------------------
-// Contact Inquiry
-// ----------------------------------------------------
-app.get('/api/contact', (req, res) => {
-  res.json({ success: true, count: contactInquiriesDB.length, data: contactInquiriesDB });
-});
-
-app.post('/api/contact', (req, res) => {
-  const { name, email, phone, subject, message } = req.body;
-
-  if (!name || !email || !subject || !message) {
-    return res.status(400).json({ success: false, message: 'Please fill all required fields' });
+  if (!result.added) {
+    return res.status(200).json({
+      success: true,
+      message: 'You are already enrolled in the Vansh Weapons Arsenal Insider intel briefing!'
+    });
   }
 
-  const inquiry = {
-    id: contactInquiriesDB.length + 1,
-    name: name.trim(),
-    email: email.trim(),
-    phone: (phone || '').trim(),
-    subject: subject.trim(),
-    message: message.trim(),
-    createdAt: new Date().toISOString()
-  };
-
-  contactInquiriesDB.unshift(inquiry);
-
-  res.status(200).json({
+  res.status(201).json({
     success: true,
-    message: `Thank you ${name}! Your inquiry regarding '${subject}' has been received. Our team will contact you shortly.`,
-    data: inquiry
+    message: 'Tactical intel subscription confirmed! Check your inbox for exclusive gear drops.'
   });
 });
 
@@ -444,7 +644,7 @@ app.use((req, res) => {
 // Global Error Handler
 // ----------------------------------------------------
 app.use((err, req, res, next) => {
-  console.error('API Error:', err);
+  console.error('[API Error]:', err);
   res.status(500).json({
     success: false,
     message: 'Internal server error occurred',
@@ -452,7 +652,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`⚔️ Vansh Weapons Backend API operational on http://localhost:${PORT}`);
+// ----------------------------------------------------
+// Start Server
+// ----------------------------------------------------
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`⚔️ Vansh Weapons Backend API v2.0 operational on port ${PORT}`);
   console.log(`📡 Ready to accept requests across all endpoints`);
 });

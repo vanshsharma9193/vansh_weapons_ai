@@ -1,9 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { testimonials } from '../data/testimonials';
+import { testimonials as fallbackTestimonials } from '../data/testimonials';
+import { fetchTestimonials } from '../services/api';
 import { ChevronLeft, ChevronRight, Star, CheckCircle } from 'lucide-react';
 
 export default function TestimonialsSection() {
+  const [items, setItems] = useState(fallbackTestimonials);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    async function loadTestimonials() {
+      const data = await fetchTestimonials();
+      if (data && data.length > 0) {
+        setItems(data);
+      }
+    }
+    loadTestimonials();
+  }, []);
 
   const getVisibleCount = () => {
     if (typeof window !== 'undefined') {
@@ -21,7 +33,7 @@ export default function TestimonialsSection() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const maxIndex = Math.max(0, testimonials.length - visibleCount);
+  const maxIndex = Math.max(0, items.length - visibleCount);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -61,20 +73,21 @@ export default function TestimonialsSection() {
                 transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
             >
-              {testimonials.map((item) => (
+              {items.map((item) => (
                 <div key={item.id} className="testimonial-card">
                   <div className="test-stars">
                     {[...Array(5)].map((_, i) => (
                       <Star
                         key={i}
                         size={14}
-                        style={{ display: 'inline', marginRight: '2px' }}
                         fill={i < item.rating ? 'var(--gold)' : 'none'}
                         stroke="var(--gold)"
                       />
                     ))}
                   </div>
+
                   <p className="test-text">"{item.text}"</p>
+
                   <div className="test-author">
                     <div className="test-avatar">{item.name[0]}</div>
                     <div>
@@ -82,8 +95,8 @@ export default function TestimonialsSection() {
                       <div className="test-location">📍 {item.location}</div>
                       {item.verified && (
                         <div className="test-verified">
-                          <CheckCircle size={10} style={{ display: 'inline', marginRight: '2px' }} />
-                          VERIFIED PURCHASE
+                          <CheckCircle size={10} />
+                          <span>VERIFIED PURCHASE</span>
                         </div>
                       )}
                     </div>
@@ -100,10 +113,11 @@ export default function TestimonialsSection() {
 
         <div className="carousel-dots">
           {[...Array(maxIndex + 1)].map((_, i) => (
-            <div
+            <button
               key={i}
               className={`dot ${i === currentIndex ? 'active' : ''}`}
               onClick={() => setCurrentIndex(i)}
+              aria-label={`Go to slide ${i + 1}`}
             />
           ))}
         </div>

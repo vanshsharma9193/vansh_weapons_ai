@@ -1,0 +1,67 @@
+[
+  {
+    "orderId": "VW-99049-2026",
+    "items": [
+      {
+        "id": 1,
+        "name": "Predator Knife",
+        "price": 2499,
+        "qty": 1
+      }
+    ],
+    "shippingAddress": {
+      "fullName": "Test User",
+      "address": "123 Main St",
+      "city": "Delhi",
+      "pincode": "110001"
+    },
+    "paymentMethod": "Cash on Delivery (COD)",
+    "subtotal": 2499,
+    "discount": 500,
+    "couponCode": "VANSH20",
+    "shippingFee": 150,
+    "totalAmount": 2149,
+    "status": "Confirmed",
+    "trackingNumber": "VW-EXP-537212",
+    "carrier": "BlueDart Defence Express",
+    "estimatedDelivery": "3-5 Business Days",
+    "complianceVerified": true,
+    "armsActReference": "SEC-4-ARMS-1959-OK",
+    "createdAt": "2026-11-24T16:33:19.815Z"
+  },
+  {
+    "orderId": "VW-94821-2026",
+    "items": [
+      {
+        "id": 1,
+        "name": "Predator Hunting Blade",
+        "price": 2499,
+        "qty": 1,
+        "category": "knives",
+        "image": "/images/knife1.png"
+      }
+    ],
+    "shippingAddress": {
+      "fullName": "Vikram Singh Rathore",
+      "email": "vikram.rathore@example.com",
+      "phone": "+91 98765 43210",
+      "address": "Plot 42, Defence Colony",
+      "city": "Jaipur",
+      "state": "Rajasthan",
+      "pincode": "302001",
+      "idType": "Aadhaar Card",
+      "idNumber": "XXXX-XXXX-9012"
+    },
+    "paymentMethod": "Cash on Delivery (COD)",
+    "subtotal": 2499,
+    "discount": 0,
+    "couponCode": null,
+    "shippingFee": 150,
+    "totalAmount": 2649,
+    "status": "Shipped",
+    "trackingNumber": "VW-EXP-883921",
+    "carrier": "BlueDart Defence Express",
+    "estimatedDelivery": "3 Business Days",
+    "createdAt": "2026-11-23T12:00:00.000Z"
+  }
+]

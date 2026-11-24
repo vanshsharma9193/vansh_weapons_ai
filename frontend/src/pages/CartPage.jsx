@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Trash2, Plus, Minus, ArrowRight, Tag, ShieldCheck } from 'lucide-react';
+import { verifyCoupon } from '../services/api';
 
 export default function CartPage({
   cart,
@@ -10,25 +11,35 @@ export default function CartPage({
 }) {
   const [coupon, setCoupon] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState('');
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [couponMsg, setCouponMsg] = useState('');
+  const [verifying, setVerifying] = useState(false);
   const navigate = useNavigate();
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const discount = appliedCoupon === 'VANSH20' && subtotal >= 2000 ? Math.round(subtotal * 0.2) : 0;
+  const discount = discountAmount;
   const freeShippingThreshold = 5000;
   const shippingFee = subtotal >= freeShippingThreshold || cart.length === 0 ? 0 : 150;
-  const total = subtotal - discount + shippingFee;
+  const total = Math.max(0, subtotal - discount + shippingFee);
 
-  const handleApplyCoupon = (e) => {
+  const handleApplyCoupon = async (e) => {
     e.preventDefault();
-    if (coupon.trim().toUpperCase() === 'VANSH20') {
-      if (subtotal < 2000) {
-        onShowNotification('Code VANSH20 requires minimum order of ₹2,000');
-      } else {
-        setAppliedCoupon('VANSH20');
-        onShowNotification('🎉 20% Discount applied successfully!');
-      }
+    if (!coupon.trim()) return;
+
+    setVerifying(true);
+    const res = await verifyCoupon(coupon, subtotal);
+    setVerifying(false);
+
+    if (res && res.valid) {
+      setAppliedCoupon(res.couponCode);
+      setDiscountAmount(res.discountAmount || 0);
+      setCouponMsg(res.message || `Coupon ${res.couponCode} applied!`);
+      onShowNotification(res.message || 'Coupon applied successfully!');
     } else {
-      onShowNotification('Invalid promo code. Try VANSH20');
+      setAppliedCoupon('');
+      setDiscountAmount(0);
+      setCouponMsg('');
+      onShowNotification(res?.message || 'Invalid coupon code');
     }
   };
 
@@ -62,7 +73,7 @@ export default function CartPage({
 
               {cart.map((item) => (
                 <div key={item.id} style={{ display: 'flex', gap: '16px', alignItems: 'center', padding: '16px 0', borderBottom: '1px solid var(--bg-border)' }}>
-                  <div style={{ width: '80px', height: '80px', background: 'var(--bg-dark)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyCenter: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                  <div style={{ width: '80px', height: '80px', background: 'var(--bg-dark)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                     <img
                       src={item.image}
                       alt={item.name}
@@ -106,22 +117,22 @@ export default function CartPage({
               </h3>
 
               {/* Promo Coupon Form */}
-              <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+              <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                 <input
                   type="text"
-                  placeholder="Promo Code (e.g. VANSH20)"
+                  placeholder="Promo Code (e.g. VANSH20, VANSH15)"
                   value={coupon}
                   onChange={(e) => setCoupon(e.target.value)}
                   style={{ flex: 1, background: 'var(--bg-dark)', border: '1px solid var(--bg-border)', padding: '10px 14px', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '13px' }}
                 />
-                <button type="submit" className="btn-ghost" style={{ padding: '10px 16px', fontSize: '12px' }}>
-                  Apply
+                <button type="submit" className="btn-ghost" style={{ padding: '10px 16px', fontSize: '12px' }} disabled={verifying}>
+                  {verifying ? '...' : 'Apply'}
                 </button>
               </form>
 
               {appliedCoupon && (
                 <div style={{ background: 'rgba(39,174,96,0.1)', border: '1px solid #27ae60', padding: '8px 12px', borderRadius: '8px', color: '#27ae60', fontSize: '12px', marginBottom: '16px' }}>
-                  ✓ Code VANSH20 applied (-20%)
+                  ✓ {couponMsg || `Code ${appliedCoupon} applied!`}
                 </div>
               )}
 
@@ -132,7 +143,7 @@ export default function CartPage({
                 </div>
                 {discount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#27ae60' }}>
-                    <span>Promo Discount (20%)</span>
+                    <span>Promo Discount ({appliedCoupon})</span>
                     <span>-₹{discount.toLocaleString('en-IN')}</span>
                   </div>
                 )}
@@ -147,7 +158,10 @@ export default function CartPage({
                 <span style={{ color: 'var(--gold)' }}>₹{total.toLocaleString('en-IN')}</span>
               </div>
 
-              <button className="btn-primary" onClick={() => navigate('/checkout')}>
+              <button
+                className="btn-primary"
+                onClick={() => navigate('/checkout', { state: { couponCode: appliedCoupon, discountAmount: discount } })}
+              >
                 Proceed to Checkout
                 <ArrowRight size={18} />
               </button>

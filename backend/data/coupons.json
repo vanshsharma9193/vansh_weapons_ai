@@ -1,0 +1,30 @@
+[
+  {
+    "code": "VANSH20",
+    "discountPercent": 20,
+    "minSubtotal": 2000,
+    "description": "20% off on orders above ₹2,000",
+    "active": true
+  },
+  {
+    "code": "VANSH15",
+    "discountPercent": 15,
+    "minSubtotal": 1999,
+    "description": "15% off on orders above ₹1,999",
+    "active": true
+  },
+  {
+    "code": "FIRSTBUY",
+    "discountPercent": 10,
+    "minSubtotal": 0,
+    "description": "10% off on your first order",
+    "active": true
+  },
+  {
+    "code": "TACTICAL15",
+    "discountPercent": 15,
+    "minSubtotal": 1500,
+    "description": "15% off on tactical gear above ₹1,500",
+    "active": true
+  }
+]

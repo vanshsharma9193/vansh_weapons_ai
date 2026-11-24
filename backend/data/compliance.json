@@ -1,0 +1,13 @@
+{
+  "act": "The Arms Act, 1959 & Arms Rules, 2016",
+  "jurisdiction": "Republic of India",
+  "verifiedBy": "Vansh Weapons Legal & Compliance Directorate",
+  "guidelines": {
+    "knives": "Blades with cutting length under 9 inches (22.86 cm) and width under 2 inches are permissible for culinary, sporting, hunting, and utility purposes without an arms license under Section 4 of the Arms Act (subject to state-specific notifications).",
+    "bows": "Archery recurve bows, compound bows, and target arrows are classified as sporting goods and do not require an arms license.",
+    "selfDefense": "Civilian-grade pepper spray canisters (capsaicin formula) and stun devices with safety disable pins are legal for personal safety and defense of person/property under Section 96 to 106 of the Indian Penal Code (IPC).",
+    "ageRestriction": "Minimum age of 18 years verified via Government Identity proof (Aadhaar Card, PAN, Voter ID, or Driving License)."
+  },
+  "complianceRate": "100%",
+  "auditDate": "2026-11-24"
+}

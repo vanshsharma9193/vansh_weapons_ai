@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { submitOrder } from '../services/api';
 import { ShieldCheck, CheckCircle2, Lock, CreditCard } from 'lucide-react';
 
 export default function CheckoutPage({ cart, onClearCart, onShowNotification }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const passedCoupon = location.state?.couponCode || '';
+  const passedDiscount = location.state?.discountAmount || 0;
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -23,8 +26,9 @@ export default function CheckoutPage({ cart, onClearCart, onShowNotification }) 
   const [submitting, setSubmitting] = useState(false);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const discount = passedDiscount;
   const shippingFee = subtotal >= 5000 || cart.length === 0 ? 0 : 150;
-  const total = subtotal + shippingFee;
+  const total = Math.max(0, subtotal - discount + shippingFee);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -55,7 +59,8 @@ export default function CheckoutPage({ cart, onClearCart, onShowNotification }) 
         idNumber: formData.idNumber
       },
       ageVerified: formData.ageVerified,
-      paymentMethod: formData.paymentMethod
+      paymentMethod: formData.paymentMethod,
+      couponCode: passedCoupon
     };
 
     const res = await submitOrder(orderPayload);

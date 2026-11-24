@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1795537999846,
+    "name": "Aman",
+    "email": "aman@example.com",
+    "phone": "",
+    "subject": "General Inquiry",
+    "message": "Hello tactical team",
+    "createdAt": "2026-11-24T16:33:19.846Z"
+  },
+  {
+    "id": 1,
+    "name": "Sameer Khan",
+    "email": "sameer.k@example.com",
+    "phone": "+91 98111 22334",
+    "subject": "Legality Query",
+    "message": "Is the Phantom Recurve Bow legal to practice archery on private farm land?",
+    "createdAt": "2026-11-20T10:15:00.000Z"
+  }
+]

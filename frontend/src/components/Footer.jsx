@@ -1,14 +1,24 @@
 import React, { useState } from 'react';
 import { ArrowRight, ShieldCheck, CheckCircle } from 'lucide-react';
+import { subscribeNewsletter } from '../services/api';
 
 export default function Footer({ onCategorySelect, onShowNotification }) {
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleNewsletterSubmit = (e) => {
+  const handleNewsletterSubmit = async (e) => {
     e.preventDefault();
-    if (email) {
-      onShowNotification('✅ Subscribed! Welcome to the Vansh Weapons family!');
+    if (!email) return;
+
+    setLoading(true);
+    const res = await subscribeNewsletter(email);
+    setLoading(false);
+
+    if (res && res.success) {
+      onShowNotification(res.message || '✅ Subscribed! Welcome to the Vansh Weapons family!');
       setEmail('');
+    } else {
+      onShowNotification(res?.message || 'Failed to subscribe. Please try again.');
     }
   };
 
@@ -87,7 +97,7 @@ export default function Footer({ onCategorySelect, onShowNotification }) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
-              <button type="submit" aria-label="Subscribe">
+              <button type="submit" aria-label="Subscribe" disabled={loading}>
                 <ArrowRight size={18} />
               </button>
             </form>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MapPin, Phone, Mail, Clock, Send } from 'lucide-react';
+import { submitContactForm } from '../services/api';
 
 export default function ContactSection({ onShowNotification }) {
   const [formData, setFormData] = useState({
@@ -12,20 +13,24 @@ export default function ContactSection({ onShowNotification }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
 
-    setTimeout(() => {
-      setSubmitting(false);
+    const res = await submitContactForm(formData);
+    setSubmitting(false);
+
+    if (res && res.success) {
       setSubmitted(true);
-      onShowNotification("Message sent successfully! We'll get back to you soon. 📬");
+      onShowNotification(res.message || "Message sent successfully! We'll get back to you soon. 📬");
 
       setTimeout(() => {
         setSubmitted(false);
         setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
       }, 2500);
-    }, 1500);
+    } else {
+      onShowNotification(res?.message || 'Failed to send message. Please check your inputs.');
+    }
   };
 
   return (
@@ -157,7 +162,7 @@ export default function ContactSection({ onShowNotification }) {
               }}
             >
               <span>
-                {submitting ? 'Sending...' : submitted ? 'Message Sent! ✓' : 'Send Message'}
+                {submitting ? 'Transmitting...' : submitted ? 'Message Sent! ✓' : 'Send Message'}
               </span>
               {!submitting && !submitted && <Send size={18} />}
             </button>

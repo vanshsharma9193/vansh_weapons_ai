@@ -4,8 +4,12 @@
   "description": "Node.js Express REST API for Vansh Weapons Legal Weapons & Tactical Gear",
   "main": "server.js",
   "type": "module",
+  "license": "ISC",
   "scripts": {
+    "build": "npm install",
+    "prestart": "npm install",
     "start": "node server.js",
+    "start-all": "node start-all.js",
     "dev": "node server.js"
   },
   "dependencies": {
